@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wire Desk – News classifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --desk:#e8ecf3; --paper:#fdfdfb; --ink:#172033; --muted:#5d6779; --rule:#cdd4e0; --focus:#2b4bff;
+  --c-automobile:#c92a2a; --c-entertainment:#ae3ec9; --c-politics:#1971c2; --c-science:#0b7285;
+  --c-sports:#2f9e44; --c-technology:#e67700; --c-world:#495057;
+  --ui:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --text:"Newsreader",Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --desk:#0f1522; --paper:#1a2233; --ink:#e8ecf5; --muted:#9aa5ba; --rule:#2c374d; --focus:#7f95ff;
+    --c-automobile:#ff6b6b; --c-entertainment:#da77f2; --c-politics:#4dabf7; --c-science:#3bc9db;
+    --c-sports:#69db7c; --c-technology:#ffa94d; --c-world:#adb5bd; }
+}
+*{box-sizing:border-box}
+html{background:var(--desk)}
+body{margin:0;font-family:var(--ui);color:var(--ink);background:var(--desk);min-height:100vh;line-height:1.5}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+button,textarea{font:inherit;color:inherit}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  max-width:1120px;margin:0 auto;padding:22px 24px 8px}
+.brand{font-weight:800;font-size:1.5rem;letter-spacing:-.02em}
+.brand small{display:block;font-weight:400;font-size:.9rem;color:var(--muted);letter-spacing:0}
+.tabs{display:flex;gap:4px;background:var(--paper);border:1px solid var(--rule);border-radius:999px;padding:4px}
+.tabs button{border:0;background:none;padding:8px 18px;border-radius:999px;cursor:pointer;font-weight:600;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+
+main{max-width:1120px;margin:0 auto;padding:12px 24px 56px}
+.grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+
+/* the sheet the article sits on */
+.sheet{position:relative;background:var(--paper);border:1px solid var(--rule);border-radius:6px;
+  padding:28px 28px 22px;box-shadow:0 1px 0 var(--rule),0 18px 40px -24px rgba(23,32,51,.35);overflow:hidden}
+.sheet h1,.sheet p.lead{padding-right:190px}
+.sheet h1{margin:0 0 4px;font-size:1.7rem;line-height:1.15;letter-spacing:-.02em;font-weight:800}
+.sheet p.lead{margin:0 0 18px;color:var(--muted);max-width:52ch}
+textarea{width:100%;min-height:230px;resize:vertical;border:1px solid var(--rule);border-radius:4px;
+  background:transparent;padding:14px 16px;font-family:var(--text);font-size:1.12rem;line-height:1.6}
+textarea::placeholder{color:var(--muted);font-style:italic}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}
+.count{color:var(--muted);font-size:.9rem}
+.go{border:0;background:var(--ink);color:var(--paper);font-weight:700;padding:12px 26px;border-radius:4px;cursor:pointer;
+  transition:transform .12s ease,opacity .2s}
+.go:hover{transform:translateY(-1px)} .go:active{transform:translateY(1px)}
+.go[disabled]{opacity:.5;cursor:progress}
+.save{display:flex;align-items:center;gap:8px;font-size:.92rem;color:var(--muted);cursor:pointer}
+.samples{margin-top:20px;padding-top:16px;border-top:1px solid var(--rule)}
+.samples h2{font-size:.95rem;margin:0 0 10px;font-weight:600;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--rule);background:transparent;border-radius:999px;padding:6px 14px;cursor:pointer;font-size:.92rem}
+.chip:hover{border-color:var(--ink)}
+.err{margin-top:12px;color:var(--c-automobile);font-weight:600}
+
+/* verdict stamp */
+.stamp{position:absolute;right:22px;top:20px;pointer-events:none;opacity:0;
+  border:4px solid currentColor;border-radius:8px;padding:6px 16px;font-weight:800;font-size:1.9rem;letter-spacing:.02em;
+  transform:rotate(-9deg);mix-blend-mode:normal;background:color-mix(in srgb,var(--paper) 80%,transparent)}
+.stamp.hit{animation:thud .45s cubic-bezier(.2,.9,.3,1.2) forwards}
+@keyframes thud{0%{opacity:0;transform:rotate(-2deg) scale(2.1)}60%{opacity:1;transform:rotate(-9deg) scale(.94)}100%{opacity:.96;transform:rotate(-9deg) scale(1)}}
+
+/* the trays */
+.trays{background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:20px 22px;list-style:none;margin:0}
+.trays-head{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px;font-weight:800;font-size:1.1rem}
+.trays-head span{font-weight:400;font-size:.88rem;color:var(--muted)}
+.tray{display:grid;grid-template-columns:150px 1fr 48px;gap:12px;align-items:center;padding:9px 8px;border-radius:4px;
+  border-bottom:1px solid var(--rule)}
+.tray:last-child{border-bottom:0}
+.tray .name{font-weight:600;text-transform:capitalize;display:flex;align-items:center;gap:8px}
+.tray .name i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--col)}
+.track{display:block;height:12px;background:color-mix(in srgb,var(--ink) 8%,transparent);border-radius:99px;overflow:hidden}
+.fill{display:block;height:100%;width:0;background:var(--col);border-radius:99px;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.pct{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:.95rem}
+.tray.win{background:color-mix(in srgb,var(--col) 13%,transparent)}
+.tray.win .name,.tray.win .pct{color:var(--ink);font-weight:800}
+.tray.win .track{height:16px}
+.note{margin:12px 0 0;font-size:.85rem;color:var(--muted)}
+
+.history{margin-top:24px}
+.history h2{font-size:1rem;margin:0 0 10px}
+.hist-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.hist-list li{display:flex;gap:12px;align-items:baseline;background:var(--paper);border:1px solid var(--rule);
+  border-left:6px solid var(--col);border-radius:4px;padding:10px 14px}
+.hist-list b{text-transform:capitalize;min-width:110px;flex:none}
+.hist-list span{flex:1;min-width:0;font-family:var(--text);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{color:var(--muted);background:var(--paper);border:1px dashed var(--rule);border-radius:4px;padding:18px}
+
+/* feeds */
+.feedtabs{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 18px}
+.feedtabs button{border:1px solid var(--rule);background:var(--paper);border-radius:6px;padding:9px 14px;cursor:pointer;font-weight:600;
+  text-transform:capitalize;border-top:4px solid var(--col)}
+.feedtabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.feedtabs em{font-style:normal;font-weight:400;opacity:.7;margin-left:6px}
+.items{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.items li{background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:14px 18px}
+.items time{display:block;color:var(--muted);font-size:.85rem;margin-bottom:4px}
+.items p{margin:0;font-family:var(--text);font-size:1.08rem}
+[hidden]{display:none!important}
+@media (max-width:560px){.sheet h1,.sheet p.lead{padding-right:0}.stamp{position:static;display:inline-block;margin-bottom:10px;font-size:1.4rem}.tray{grid-template-columns:128px 1fr 44px}}
+@media (prefers-reduced-motion:reduce){.stamp.hit{animation:none;opacity:.96}.fill{transition:none}.go{transition:none}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">Wire Desk<small>Sorts incoming news into seven sections</small></div>
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button role="tab" id="tab-classify" aria-selected="true" aria-controls="view-classify">Classify</button>
+    <button role="tab" id="tab-feeds" aria-selected="false" aria-controls="view-feeds">Feeds</button>
+  </div>
+</header>
+
+<main>
+  <section id="view-classify" role="tabpanel" aria-labelledby="tab-classify">
+    <div class="grid">
+      <div>
+        <div class="sheet">
+          <div class="stamp" id="stamp" aria-hidden="true"></div>
+          <h1>Paste a story, get its section</h1>
+          <p class="lead">A headline alone works. A headline plus the first paragraph works better.</p>
+          <label for="text" class="count" style="display:block;margin-bottom:6px">News text</label>
+          <textarea id="text" placeholder="e.g. The central bank held interest rates steady on Thursday as inflation cooled…"></textarea>
+          <div class="row">
+            <label class="save"><input type="checkbox" id="route" checked> Save to the section feed</label>
+            <span class="count" id="count">0 words</span>
+            <button class="go" id="go">Classify story</button>
+          </div>
+          <div class="err" id="err" role="alert" hidden></div>
+          <div class="samples">
+            <h2>No story handy? Try one</h2>
+            <div class="chips" id="chips"></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <ol class="trays" id="trays" aria-live="polite" aria-label="Match strength per section">
+          <li class="trays-head" style="display:flex">Sections <span id="verdict">Waiting for a story</span></li>
+        </ol>
+        <p class="note" style="padding:0 4px">Bars show how strongly each section matches. They are relative match scores from the model, not exact probabilities.</p>
+      </div>
+    </div>
+
+    <div class="history">
+      <h2>This session</h2>
+      <ul class="hist-list" id="hist"></ul>
+      <div class="empty" id="hist-empty">Classified stories will appear here.</div>
+    </div>
+  </section>
+
+  <section id="view-feeds" role="tabpanel" aria-labelledby="tab-feeds" hidden>
+    <h1 style="margin:8px 0 0;font-size:1.5rem">Section feeds</h1>
+    <p style="color:var(--muted);margin:4px 0 0">Every story saved from the Classify view lands in its section's file under data/feeds.</p>
+    <div class="feedtabs" id="feedtabs" role="tablist"></div>
+    <ul class="items" id="items"></ul>
+    <div class="empty" id="items-empty" hidden>Nothing saved in this section yet. Classify a story with “Save to the section feed” ticked.</div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const SAMPLES = {
+  politics:"Congress leader Rahul Gandhi accused the BJP government of ignoring farmers' demands, while the Chief Minister said the party will contest all seats in the upcoming assembly elections.",
+  sports:"India beat Australia by six wickets in the final T20, chasing 168 with two overs to spare thanks to a fiery fifty from the captain.",
+  technology:"The company unveiled a new smartphone chip with a built-in AI engine that it says runs language models twice as fast on the device.",
+  science:"Astronomers have detected water vapour in the atmosphere of a distant exoplanet using the James Webb Space Telescope.",
+  entertainment:"Bollywood actor Ranveer Singh's upcoming film trailer crossed 10 million views in 24 hours, with fans praising the actor's performance and the director's vision.",
+  automobile:"Tata Motors launched its new electric SUV in India, with a claimed range of 500 km and a starting price of Rs 18 lakh.",
+  world:"United Nations leaders met in Geneva on Monday to discuss emergency aid for flood-hit regions as the death toll continued to rise."
+};
+let CATS = [], COLORS = {}, history = [];
+
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const col = c => `var(--c-${c})`;
+
+async function init(){
+  const r = await fetch("/api/categories"); CATS = (await r.json()).categories;
+  CATS.forEach(c => COLORS[c] = col(c));
+  renderTrays(null);
+  $("#chips").innerHTML = CATS.filter(c => SAMPLES[c]).map(c =>
+    `<button class="chip" data-c="${c}">${cap(c)}</button>`).join("");
+  $("#chips").addEventListener("click", e => {
+    const b = e.target.closest(".chip"); if(!b) return;
+    $("#text").value = SAMPLES[b.dataset.c]; updateCount(); $("#text").focus();
+  });
+}
+
+function renderTrays(scores, winner){
+  const head = $("#trays").firstElementChild;
+  $("#trays").innerHTML = ""; $("#trays").appendChild(head);
+  CATS.forEach(c => {
+    const li = document.createElement("li");
+    li.className = "tray" + (c === winner ? " win" : "");
+    li.style.setProperty("--col", COLORS[c]);
+    const v = scores ? Math.round(scores[c]*100) : 0;
+    li.innerHTML = `<span class="name"><i></i>${c}</span>
+      <span class="track"><span class="fill" style="width:0"></span></span>
+      <span class="pct">${scores ? v + "%" : "–"}</span>`;
+    $("#trays").appendChild(li);
+    requestAnimationFrame(() => requestAnimationFrame(() => li.querySelector(".fill").style.width = v + "%"));
+  });
+}
+
+function updateCount(){
+  const n = $("#text").value.trim().split(/\s+/).filter(Boolean).length;
+  $("#count").textContent = n + (n === 1 ? " word" : " words");
+}
+$("#text").addEventListener("input", updateCount);
+$("#text").addEventListener("keydown", e => { if((e.ctrlKey||e.metaKey) && e.key==="Enter") classify(); });
+$("#go").addEventListener("click", classify);
+
+async function classify(){
+  const text = $("#text").value.trim(), err = $("#err"), go = $("#go");
+  err.hidden = true;
+  if(!text){ err.textContent = "Paste or type a story first."; err.hidden = false; return; }
+  go.disabled = true; go.textContent = "Sorting…";
+  try{
+    const r = await fetch("/predict", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({text, route: $("#route").checked})});
+    if(!r.ok) throw new Error((await r.json()).detail || "The server could not classify this story.");
+    const d = await r.json();
+    renderTrays(d.scores, d.category);
+    $("#verdict").textContent = cap(d.category) + " at " + Math.round(d.confidence*100) + "%";
+    const st = $("#stamp"); st.textContent = cap(d.category); st.style.color = COLORS[d.category];
+    st.classList.remove("hit"); void st.offsetWidth; st.classList.add("hit");
+    history.unshift({text, category:d.category, conf:d.confidence}); history = history.slice(0,6); renderHistory();
+  }catch(e){
+    err.textContent = e.message.includes("fetch") ? "Can't reach the server. Is uvicorn still running?" : e.message; err.hidden = false;
+  }finally{ go.disabled = false; go.textContent = "Classify story"; }
+}
+
+function renderHistory(){
+  $("#hist-empty").hidden = history.length > 0;
+  $("#hist").innerHTML = history.map(h => `<li style="--col:${COLORS[h.category]}"><b>${h.category}</b><span></span></li>`).join("");
+  [...$("#hist").children].forEach((li,i) => li.querySelector("span").textContent = history[i].text);
+}
+
+/* tabs */
+function show(view){
+  ["classify","feeds"].forEach(v => {
+    $("#view-"+v).hidden = v !== view;
+    $("#tab-"+v).setAttribute("aria-selected", v === view);
+  });
+  if(view === "feeds") loadFeedTabs();
+}
+$("#tab-classify").onclick = () => show("classify");
+$("#tab-feeds").onclick = () => show("feeds");
+
+let activeFeed = null;
+async function loadFeedTabs(){
+  const counts = (await (await fetch("/api/feeds")).json()).counts;
+  if(!activeFeed) activeFeed = CATS.find(c => counts[c] > 0) || CATS[0];
+  $("#feedtabs").innerHTML = CATS.map(c =>
+    `<button role="tab" data-c="${c}" style="--col:${COLORS[c]}" aria-selected="${c===activeFeed}">${c}<em>${counts[c]}</em></button>`).join("");
+  loadFeed(activeFeed);
+}
+$("#feedtabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return; activeFeed = b.dataset.c; loadFeedTabs();
+});
+async function loadFeed(c){
+  const items = (await (await fetch("/api/feeds/" + c + "?limit=30")).json()).items;
+  $("#items-empty").hidden = items.length > 0;
+  $("#items").innerHTML = "";
+  items.forEach(i => {
+    const li = document.createElement("li"), t = document.createElement("time"), p = document.createElement("p");
+    t.textContent = new Date(i.timestamp).toLocaleString(); p.textContent = i.text;
+    li.append(t, p); $("#items").appendChild(li);
+  });
+}
+init();
+</script>
+</body>
+</html>
